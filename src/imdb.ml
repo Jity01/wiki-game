@@ -2,9 +2,14 @@ open! Core
 
 (* [get_credits] should take the contents of an IMDB page for an actor and return a list
    of strings containing that actor's main credits. *)
-let get_credits contents : string list =
-  ignore (contents : string);
-  failwith "TODO"
+let get_credits contents : string list = 
+  let open Soup in
+  let credits = parse contents $$ "a[class]" in
+  let credits = to_list credits in
+  let get_class a = R.attribute "class" a in
+  let is_link_credit a = String.equal (get_class a) "ipc-primary-image-list-card__title" in
+  let credits = List.filter credits ~f:is_link_credit in
+  List.map credits ~f:(fun strng -> texts strng |> String.concat ~sep:"" |> String.strip)
 ;;
 
 let print_credits_command =
