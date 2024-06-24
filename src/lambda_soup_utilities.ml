@@ -60,20 +60,29 @@ let%expect_test "get_list_items" =
 
 (* Gets the first item of all unordered lists contained in an HTML page. *)
 let get_first_item_of_all_unordered_lists contents : string list =
-  ignore (contents : string);
-  failwith "TODO"
+  let open Soup in
+  parse contents $$ "ul"
+  |> to_list
+  |> List.map ~f:(fun ul -> ul $ "li")
+  |> List.map ~f:(fun li -> texts li |> String.concat ~sep:"" |> String.strip)
 ;;
 
 (* Gets the first item of the second unordered list in an HTML page. *)
 let get_first_item_of_second_unordered_list contents : string =
-  ignore (contents : string);
-  failwith "TODO"
+  let open Soup in
+  let uls = parse contents $$ "ul" in
+  let lists_of_uls = to_list uls in
+  let second_ul = List.nth_exn lists_of_uls 1 in
+  let first_item_in_ul = second_ul $ "li" in
+  texts first_item_in_ul |> String.concat ~sep:"" |> String.strip
 ;;
 
 (* Gets all bolded text from an HTML page. *)
 let get_bolded_text contents : string list =
-  ignore (contents : string);
-  failwith "TODO"
+  let open Soup in
+  parse contents $$ "b"
+  |> to_list
+  |> List.map ~f:(fun strng -> texts strng |> String.concat ~sep:"" |> String.strip)
 ;;
 
 (* [make_command ~summary ~f] is a helper function that builds a simple HTML parsing
