@@ -27,6 +27,16 @@ let get_linked_articles contents : string list =
   List.dedup_and_sort target_links ~compare:String.compare
 ;;
 
+let%expect_test "get_linked_articles" =
+  let contents = File_fetcher.fetch_exn (Local (File_path.of_string "../resources/wiki")) ~resource:"Carnivore" in
+  let credit_links = get_linked_articles contents in
+  List.iter credit_links ~f: (fun str -> print_endline str);
+  [%expect {|
+    /wiki/Animal
+    /wiki/Caniformia
+    /wiki/Feliformia |}]
+;;
+
 let print_links_command =
   let open Command.Let_syntax in
   Command.basic
