@@ -11,11 +11,9 @@ module How_to_fetch = struct
         "local-with-root"
         (optional File_path.arg_type)
         ~doc:
-          "PATH read files from disk instead of requesting via HTTP; all resource paths \
-           will be relative to the provided root"
-      |> map ~f:(function
-        | Some root -> Local root
-        | None -> Remote))
+          "PATH read files from disk instead of requesting via HTTP; all \
+           resource paths will be relative to the provided root"
+      |> map ~f:(function Some root -> Local root | None -> Remote))
   ;;
 end
 
