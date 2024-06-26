@@ -12,14 +12,15 @@ module Network = struct
   end
 
   let rec parse_line tokens ~hwy : (string * string * string) list =
-    let str_without_periods str = String.substr_replace_all str ~pattern:"." ~with_:"" in
-    match List.length tokens with
-    | 0 -> []
-    | _ ->
-      let first, last = List.hd_exn tokens, List.tl_exn tokens in
+    let str_without_periods str =
+      String.substr_replace_all str ~pattern:"." ~with_:""
+    in
+    match tokens with
+    | [] -> []
+    | first :: last ->
       let current_edges =
         List.map last ~f:(fun el ->
-          ( str_without_periods first, str_without_periods el, hwy ))
+          str_without_periods first, str_without_periods el, hwy)
       in
       let rest_edges = parse_line last ~hwy in
       List.append current_edges rest_edges
@@ -27,8 +28,9 @@ module Network = struct
 
   let get_edges_of_line line =
     let line = String.split line ~on:',' in
-    let hwy, cities = List.hd_exn line, List.tl_exn line in
-    parse_line cities ~hwy
+    match line with
+    | hwy :: cities -> parse_line cities ~hwy
+    | [] -> failwith "boo!"
   ;;
 
   let of_file file =
