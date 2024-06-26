@@ -1,5 +1,38 @@
 open! Core
 
+module Title = String
+module Url = String
+
+module Article = struct
+  type t = { title: Title.t ; url: Url.t } [@@deriving compare, sexp, hash, equal]
+end
+
+module Network = struct
+  module Connection = struct
+    module T = struct
+      type t = Article.t * Article.t [@@deriving compare, sexp, hash, equal]
+    end
+    include Comparable.Make (T)
+  end
+end
+
+module G = Graph.Imperative.Graph.Concrete (String)
+
+module Dot = Graph.Graphviz.Dot (struct
+    include G
+
+    let edge_attributes _ = [ `Dir `Forward ]
+    let default_edge_attributes _ = []
+    let get_subgraph _ = None
+    let vertex_attributes v = [ `Shape `Box; `Label v; `Fillcolor 1000 ]
+    (* let vertex_attributes _ = [] *)
+    (* let vertex_name (v : Article.t) = String.append (String.append "title: " v.title) (String.append "url:" v.url) *)
+    let vertex_name v = sprintf {|"%s"|} v
+    let default_vertex_attributes _ = []
+    let graph_attributes _ = []
+  end)
+
+
 (* [get_linked_articles] should return a list of wikipedia article lengths contained in
    the input.
 
@@ -53,12 +86,44 @@ let print_links_command =
    [how_to_fetch] argument along with [File_fetcher] to fetch the articles so that the
    implementation can be tested locally on the small dataset in the ../resources/wiki
    directory. *)
+let get_text_of_node node =
+  let open Soup in
+  texts node |> String.concat ~sep:"" |> String.strip
+let get_contents ~how_to_fetch resource = print_endline resource; File_fetcher.fetch_exn how_to_fetch ~resource
+let rec get_edges ~how_to_fetch visited ~url ~max_depth =
+  match max_depth with
+  | 0 -> []
+  | _ ->
+    let children_urls = get_linked_articles (get_contents ~how_to_fetch url) in
+    let unseen_children_urls = List.filter children_urls ~f:(fun child_url -> not (Hash_set.mem visited child_url)) in
+    match unseen_children_urls with
+    | [] -> []
+    | _ ->
+      List.iter unseen_children_urls ~f:(fun child_url -> Hash_set.add visited child_url);
+      let edges = List.map unseen_children_urls ~f:(fun child_url -> url, child_url) in
+      let f child_url = get_edges visited ~how_to_fetch ~url:child_url ~max_depth:(max_depth - 1) in
+      let rest_of_edges = List.concat_map unseen_children_urls ~f in
+      List.append edges rest_of_edges
+;;
+let get_graph ~how_to_fetch ~origin ~max_depth = 
+  let visited = Hash_set.create (module Url) in
+  Hash_set.add visited origin;
+  let graph_of_urls = get_edges ~how_to_fetch ~url:origin visited ~max_depth in
+  let open Soup in
+  let get_title url = parse (get_contents ~how_to_fetch url) $ "title" |> get_text_of_node in
+  let create_article_from_url url : Article.t = {title=(get_title url); url=url} in
+  let graph_of_articles = List.map graph_of_urls ~f:(fun (parent_url, child_url) -> (create_article_from_url parent_url, create_article_from_url child_url)) in
+  Network.Connection.Set.of_list graph_of_articles
+
+  let write_to_file network ~output_file = 
+  let graph = G.create () in
+  let str_without_spaces str = String.substr_replace_all str ~pattern:" " ~with_:" " in
+  Set.iter network ~f:(fun ((parent_article, child_article) : Article.t * Article.t) -> G.add_edge graph (str_without_spaces parent_article.title) (str_without_spaces child_article.title));
+  Dot.output_graph (Out_channel.create (File_path.to_string output_file)) graph;;
+
 let visualize ?(max_depth = 3) ~origin ~output_file ~how_to_fetch () : unit =
-  ignore (max_depth : int);
-  ignore (origin : string);
-  ignore (output_file : File_path.t);
-  ignore (how_to_fetch : File_fetcher.How_to_fetch.t);
-  failwith "TODO"
+  let network = get_graph ~how_to_fetch ~origin ~max_depth in
+  write_to_file network ~output_file;
 ;;
 
 let visualize_command =
