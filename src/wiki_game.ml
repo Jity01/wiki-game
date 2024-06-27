@@ -105,17 +105,21 @@ let rec get_edges ~how_to_fetch visited ~url ~max_depth =
       let rest_of_edges = List.concat_map unseen_children_urls ~f in
       List.append edges rest_of_edges
 ;;
+
+let get_title url ~how_to_fetch=
+  let open Soup in
+  parse (get_contents ~how_to_fetch url) $ "title" |> get_text_of_node
+
+let create_article_from_url url ~how_to_fetch : Article.t = {title=(get_title url ~how_to_fetch); url=url}
+
 let get_graph ~how_to_fetch ~origin ~max_depth = 
   let visited = Hash_set.create (module Url) in
   Hash_set.add visited origin;
   let graph_of_urls = get_edges ~how_to_fetch ~url:origin visited ~max_depth in
-  let open Soup in
-  let get_title url = parse (get_contents ~how_to_fetch url) $ "title" |> get_text_of_node in
-  let create_article_from_url url : Article.t = {title=(get_title url); url=url} in
-  let graph_of_articles = List.map graph_of_urls ~f:(fun (parent_url, child_url) -> (create_article_from_url parent_url, create_article_from_url child_url)) in
+  let graph_of_articles = List.map graph_of_urls ~f:(fun (parent_url, child_url) -> (create_article_from_url parent_url ~how_to_fetch, create_article_from_url child_url ~how_to_fetch)) in
   Network.Connection.Set.of_list graph_of_articles
 
-  let write_to_file network ~output_file = 
+let write_to_file network ~output_file = 
   let graph = G.create () in
   let str_without_spaces str = String.substr_replace_all str ~pattern:" " ~with_:" " in
   Set.iter network ~f:(fun ((parent_article, child_article) : Article.t * Article.t) -> G.add_edge graph (str_without_spaces parent_article.title) (str_without_spaces child_article.title));
@@ -151,6 +155,24 @@ let visualize_command =
         printf !"Done! Wrote dot file to %{File_path}\n%!" output_file]
 ;;
 
+let check_win_condition url ~dest = String.equal url dest
+
+let rec helper url ~dest ~visited ~how_to_fetch ~depth =
+  let is_dest_found = check_win_condition url ~dest in
+  match is_dest_found || Int.(=) depth 0 with
+  | true -> Some [url]
+  | false ->
+    let inner_links = get_linked_articles (get_contents url ~how_to_fetch) in
+    let unseen_inner_links = List.filter inner_links ~f:(fun lnk -> not (Hash_set.mem visited lnk)) in
+    List.iter unseen_inner_links ~f:(fun lnk -> Hash_set.add visited lnk);
+    let f lnk = helper lnk ~dest ~how_to_fetch ~depth:(depth - 1) ~visited in
+    let results = List.map unseen_inner_links ~f in
+    let find_list_with_urls (ll : string list option) = match ll with | None -> false | _ -> true in
+    let soln = List.find results ~f:find_list_with_urls in 
+    match soln with
+    | None -> None
+    | Some ll -> match ll with | None -> None | Some lst -> Some (List.append [url] lst)
+
 (* [find_path] should attempt to find a path between the origin article and the
    destination article via linked articles.
 
@@ -160,11 +182,11 @@ let visualize_command =
 
    [max_depth] is useful to limit the time the program spends exploring the graph. *)
 let find_path ?(max_depth = 3) ~origin ~destination ~how_to_fetch () =
-  ignore (max_depth : int);
-  ignore (origin : string);
-  ignore (destination : string);
-  ignore (how_to_fetch : File_fetcher.How_to_fetch.t);
-  failwith "TODO"
+  let visited = Hash_set.create (module Url) in
+  let soln = helper origin ~dest:destination ~visited ~how_to_fetch ~depth:max_depth in
+  match soln with
+  | None -> None
+  | Some res -> Some (List.map res ~f:(fun lnk -> get_title lnk ~how_to_fetch))
 ;;
 
 let find_path_command =
