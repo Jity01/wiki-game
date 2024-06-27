@@ -39,6 +39,15 @@ module Edge = struct
       ; distance : int
       }
     [@@deriving compare, equal, sexp]
+
+    let get_neighbor node_id edge =
+      match Node_id.equal edge.a node_id || Node_id.equal edge.b node_id with
+      | true ->
+        (match Node_id.equal edge.a node_id with
+         | true -> Some edge.b
+         | false -> Some edge.a)
+      | false -> None
+    ;;
   end
 
   include T
@@ -51,12 +60,17 @@ module Edges = struct
   (* Exercise 1: Given a [t] (list of edges) and a [Node_id.t], implement a
      function that returns a list of neighboring nodes with their
      corresponding distances. *)
-  let neighbors t node_id : (Node_id.t * int) list = []
+  let neighbors t node_id : (Node_id.t * int) list =
+    List.filter_map t ~f:(fun edge ->
+      match Edge.get_neighbor node_id edge with
+      | None -> None
+      | Some neighbor -> Some (neighbor, edge.distance))
+  ;;
 
   (* We've left all of the tets in this file disabled. As you complete the
      exercises, please make sure to remove `[@tags "disabled"]` and run `dune
      runtest` to ensure that your implementation passes the test. *)
-  let%expect_test ("neighbors" [@tags "disabled"]) =
+  let%expect_test "neighbors" =
     let n = Node_id.create in
     let n0, n1, n2, n3, n4, n5 = n 0, n 1, n 2, n 3, n 4, n 5 in
     let t =
