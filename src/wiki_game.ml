@@ -186,7 +186,9 @@ let find_path ?(max_depth = 3) ~origin ~destination ~how_to_fetch () =
   let soln = helper origin ~dest:destination ~visited ~how_to_fetch ~depth:max_depth in
   match soln with
   | None -> None
-  | Some res -> Some (List.map res ~f:(fun lnk -> get_title lnk ~how_to_fetch))
+  | Some path ->
+      let path_titles = List.map path ~f:(fun lnk -> get_title lnk ~how_to_fetch) in
+      Some path_titles
 ;;
 
 let find_path_command =
