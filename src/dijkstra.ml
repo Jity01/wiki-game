@@ -118,7 +118,9 @@ module Nodes = struct
   (* Exercise 2: Given a list of edges, create a [t] that contains all nodes
      found in the edge list. Note that you can construct [Node.t]s with the
      [Node.init] function. *)
-  let of_edges edges = Node_id.Map.empty
+  let of_edges (edges : Edge.t list) =
+    let lst = List.concat_map edges ~f:(fun edge -> [(edge.a, Node.init ()); (edge.b, Node.init ())]) in
+    Node_id.Map.of_alist lst
   let find = Map.find_exn
   let state t node_id = find t node_id |> Node.state
 
@@ -131,7 +133,7 @@ module Nodes = struct
      node with the smallest distance along with its via route. *)
   let next_node t : (Node_id.t * (int * Node_id.t)) option = None
 
-  let%expect_test ("next_node" [@tags "disabled"]) =
+  let%expect_test ("next_node") =
     let n = Node_id.create in
     let n0, n1, n2, n3, n4, n5 = n 0, n 1, n 2, n 3, n 4, n 5 in
     let t =
