@@ -89,7 +89,11 @@ let print_links_command =
 let get_text_of_node node =
   let open Soup in
   texts node |> String.concat ~sep:"" |> String.strip
-let get_contents ~how_to_fetch resource = print_endline resource; File_fetcher.fetch_exn how_to_fetch ~resource
+let get_contents ~how_to_fetch ?(is_remote = false) resource =
+  print_endline resource;
+  match is_remote && not (String.is_prefix resource ~prefix:"https") with
+  | false -> File_fetcher.fetch_exn how_to_fetch ~resource
+  | true -> File_fetcher.fetch_exn how_to_fetch ~resource:(String.append "https://en.wikipedia.org" resource)
 let rec get_edges ~how_to_fetch visited ~url ~max_depth =
   match max_depth with
   | 0 -> []
@@ -157,15 +161,15 @@ let visualize_command =
 
 let check_win_condition url ~dest = String.equal url dest
 
-let rec helper url ~dest ~visited ~how_to_fetch ~depth =
+let rec helper url ~dest ~visited ~how_to_fetch ~depth ~is_remote =
   let is_dest_found = check_win_condition url ~dest in
   match is_dest_found || Int.(=) depth 0 with
   | true -> Some [url]
   | false ->
-    let inner_links = get_linked_articles (get_contents url ~how_to_fetch) in
+    let inner_links = get_linked_articles (get_contents url ~how_to_fetch ~is_remote) in
     let unseen_inner_links = List.filter inner_links ~f:(fun lnk -> not (Hash_set.mem visited lnk)) in
     List.iter unseen_inner_links ~f:(fun lnk -> Hash_set.add visited lnk);
-    let f lnk = helper lnk ~dest ~how_to_fetch ~depth:(depth - 1) ~visited in
+    let f lnk = helper lnk ~dest ~how_to_fetch ~depth:(depth - 1) ~visited ~is_remote in
     let results = List.map unseen_inner_links ~f in
     let find_list_with_urls (ll : string list option) = match ll with | None -> false | _ -> true in
     let soln = List.find results ~f:find_list_with_urls in 
@@ -182,8 +186,9 @@ let rec helper url ~dest ~visited ~how_to_fetch ~depth =
 
    [max_depth] is useful to limit the time the program spends exploring the graph. *)
 let find_path ?(max_depth = 3) ~origin ~destination ~how_to_fetch () =
+  let is_remote = String.is_prefix origin ~prefix:"https" in
   let visited = Hash_set.create (module Url) in
-  let soln = helper origin ~dest:destination ~visited ~how_to_fetch ~depth:max_depth in
+  let soln = helper origin ~dest:destination ~visited ~how_to_fetch ~depth:max_depth ~is_remote in
   match soln with
   | None -> None
   | Some path ->
@@ -205,6 +210,7 @@ let find_path_command =
           (optional_with_default 10 int)
           ~doc:"INT maximum length of path to search for (default 10)"
       in
+      (* fun () -> let contents = get_contents ~how_to_fetch "/wiki/Acoustic_Kitty" ~is_remote:true in print_endline contents;] *)
       fun () ->
         match find_path ~max_depth ~origin ~destination ~how_to_fetch () with
         | None -> print_endline "No path found!"
