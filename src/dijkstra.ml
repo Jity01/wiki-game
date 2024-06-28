@@ -105,7 +105,6 @@ module Node = struct
   end
 
   type t = { mutable state : State.t } [@@deriving fields ~getters, sexp]
-
   let init () = { state = Unseen }
   let set_state t state = t.state <- state
 end
@@ -131,7 +130,20 @@ module Nodes = struct
 
   (* Exercise 3: Given a [t], find the next node to process by selecting the
      node with the smallest distance along with its via route. *)
-  let next_node t : (Node_id.t * (int * Node_id.t)) option = None
+  let next_node (t : t) : (Node_id.t * (int * Node_id.t)) option =
+    let todo_nodes = Map.filter t ~f:(fun value -> match value.state with | Todo _ -> true | _ -> false) in
+    let todo_nodes_list = Map.to_alist todo_nodes in
+    let min_function ((node_id1, node1) : (Node_id.t * Node.t)) ((node_id2, node2) : (Node_id.t * Node.t)) =
+      match (node1.state, node2.state) with
+      | (Todo state1, Todo state2) ->
+        (match state1.distance > state2.distance with
+        | true -> 1
+        | false -> -1)
+      | _ -> 0 in
+    let min_todo_node = List.min_elt todo_nodes_list ~compare:min_function in
+    match min_todo_node with
+    | None -> None
+    | Some (node_id, node) -> match node.state with | Todo {distance; via} -> Some (node_id, (distance, via)) | _ -> None
 
   let%expect_test ("next_node") =
     let n = Node_id.create in

@@ -30,6 +30,7 @@ let load_file_into_2d_board input_file =
 ;;
 
 let is_pos_type_passable ~(pos : Position.t) board =
+  (* TODO: use nth *)
   let f i row =
     List.filter_mapi row ~f:(fun j value ->
       match Int.( = ) i pos.row && Int.( = ) j pos.col with
@@ -95,6 +96,7 @@ let rec helper board ~pos ~end_pos ~visited =
       Hash_set.add visited neighbor);
     let f neighbor = helper board ~pos:neighbor ~end_pos ~visited in
     let results = List.map unseen_neighbors ~f in
+    (* TODO: use find_map *)
     let soln =
       List.find results ~f:(fun ll ->
         match ll with [] -> false | _ -> true)
