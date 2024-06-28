@@ -117,9 +117,10 @@ module Nodes = struct
   (* Exercise 2: Given a list of edges, create a [t] that contains all nodes
      found in the edge list. Note that you can construct [Node.t]s with the
      [Node.init] function. *)
-  let of_edges (edges : Edge.t list) =
-    let lst = List.concat_map edges ~f:(fun edge -> [(edge.a, Node.init ()); (edge.b, Node.init ())]) in
-    Node_id.Map.of_alist lst
+  let of_edges (edges : Edge.t list) : t =
+    let half_map = List.fold edges ~init:Node_id.Map.empty ~f:(fun map edge -> Map.add_exn map ~key:edge.a ~data:(Node.init ())) in
+    let full_map = List.fold edges ~init:half_map ~f:(fun map edge -> Map.add_exn map ~key:edge.a ~data:(Node.init ())) in
+    full_map
   let find = Map.find_exn
   let state t node_id = find t node_id |> Node.state
 
@@ -167,16 +168,67 @@ module Nodes = struct
      -- that is the origin has been marked as [Origin] and nodes on the
      shortest path have been marked as [Done] -- return the path from the
      origin to the given [distination]. *)
-  let path t destination : Node_id.t list = []
+  let find_node_id (t : t) (node : Node.t) =
+    let keys = Map.keys t in
+    let wrapped_id = List.filter_map keys ~f:(fun id ->
+      match (Map.find t id) with
+      | Some n ->
+        (match n.state with
+        | Done {via} -> (match node.state with | Done obj -> (match Node_id.equal via obj.via with | true -> Some id | false -> None) | _ -> None)
+        | _ -> None )
+      | _ -> None) in
+    match List.hd wrapped_id with
+    | None -> None
+    | id -> id
+  let rec helper (t : t) (node : Node.t) : Node_id.t list =
+    match node.state with
+    | Done {via} -> let id = find_node_id t node in
+      (match id with | None -> [] | Some id -> List.append (helper t (Map.find_exn t via)) [id])
+    | _ -> []
+  let path (t : t) (destination : Node.t) : Node_id.t list = helper t destination
 
   (* Excercise 5: Write an expect test for the [path] function above. *)
   let%expect_test "path" = ()
+    (* let n = Node_id.create in
+    let n0, n1, n2, n3, n4, n5 = n 0, n 1, n 2, n 3, n 4, n 5 in
+    let t =
+      [ n0, { Node.state = Origin }
+      ; n1, { Node.state = Done { via = n0 } }
+      ; n2, { Node.state = Done { via = n1 } }
+      ; n3, { Node.state = Todo { distance = 2; via = n1 } }
+      ; n4, { Node.state = Todo { distance = 1; via = n1 } }
+      ; n5, { Node.state = Unseen }
+      ]
+      |> Node_id.Map.of_alist_exn
+    in
+    let path = path t n5 in
+    List.iter path ~f:(fun node -> node.)
+    print_s [%message (next_node : (Node_id.t * (int * Node_id.t)) option)];
+    [%expect {| (next_node ((4 (1 1)))) |}] *)
 end
 
 (* Exercise 6: Using the functions and types above, implement Dijkstras graph
    search algorithm! Remember to reenable unused warnings by deleting the
    first line of this file. *)
-let shortest_path ~edges ~origin ~destination : Node_id.t list = []
+let check_stop_condition (graph : Nodes.t) = Map.for_all graph ~f:(fun node -> match node.state with | Done _ -> true | Origin -> true | _ -> false)
+
+let find_neighbors (graph : Nodes.t) (node : Node.t) (edges : Edges.t) = 
+  Map.filter graph ~f:(fun value -> )
+
+let helper (graph : Nodes.t) ~(node : Node.t) =
+  (* check if everything has been visited yet; if not: *)
+  match check_stop_condition graph with
+  | true -> ()
+  | false -> 
+  (* find all neighboring nodes and update their values to either the min of their value or the value of the current node plus its distance to that neighbor *)
+  let nbrs = find_neighbors graph node in
+
+  (* assign the min valued unfinished node as the current node *)
+let shortest_path ~edges ~origin ~destination : Node_id.t list =
+  let graph = Nodes.of_edges edges in
+  let graph = Map.mapi graph ~f:(fun ~key ~data -> match (Node_id.equal key origin) with | true -> Node.set_state data Origin; data | false -> Node.set_state data Unseen; data) in
+  helper graph ~node:origin;
+  Nodes.path graph destination
 
 let%expect_test ("shortest_path" [@tags "disabled"]) =
   let n = Node_id.create in
